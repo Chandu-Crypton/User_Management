@@ -97,6 +97,9 @@ const UserTasks = () => {
         <div className="container mx-auto p-4">
             <h1 className="text-2xl font-bold mb-4">User Management</h1>
             {error && <p className="text-red-500">{error}</p>}
+            {editingUserId && (
+                <button onClick={updateUser} className="bg-green-500 text-white p-2 mb-4">Update User</button>
+            )}
             <div className="mb-4">
                 <input
                     type="text"
@@ -143,9 +146,9 @@ const UserTasks = () => {
                 ))}
             </ul>
 
-            {editingUserId && (
+            {/* {editingUserId && (
                 <button onClick={updateUser} className="bg-green-500 text-white p-2 mt-4">Update User</button>
-            )}
+            )} */}
         </div>
     );
 };

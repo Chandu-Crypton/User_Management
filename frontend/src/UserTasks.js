@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { validateForms } from './ValidateForms';
+import { v4 as uuidv4 } from 'uuid'; // Import UUID for unique IDs
 
 const UserTasks = () => {
     const [users, setUsers] = useState([]);
@@ -17,7 +18,15 @@ const UserTasks = () => {
     const fetchUsers = async () => {
         try {
             const response = await axios.get('https://jsonplaceholder.typicode.com/users');
-            setUsers(response.data);
+            // Modify the API response to include necessary form fields
+            const formattedUsers = response.data.map(user => ({
+                id: user.id,
+                firstName: user.name.split(' ')[0] || '',
+                lastName: user.name.split(' ')[1] || '',
+                email: user.email,
+                department: user.company?.name || ''
+            }));
+            setUsers(formattedUsers);
         } catch (err) {
             setError('Error fetching users');
         }
@@ -33,7 +42,11 @@ const UserTasks = () => {
 
         try {
             const response = await axios.post('https://jsonplaceholder.typicode.com/users', form);
-            setUsers([...users, { ...form, id: response.data.id }]);
+
+            // Assign a unique ID for the manually added user
+            const newUser = { ...form, id: uuidv4() };
+
+            setUsers([...users, newUser]);
             setForm({ firstName: '', lastName: '', email: '', department: '' });
             setError('');
         } catch (err) {
@@ -44,10 +57,10 @@ const UserTasks = () => {
     // Function to handle editing a user
     const handleEdit = (user) => {
         setForm({
-            firstName: user.firstName || user.name.split(' ')[0] || '',
-            lastName: user.lastName || user.name.split(' ')[1] || '',
+            firstName: user.firstName,
+            lastName: user.lastName,
             email: user.email,
-            department: user.company?.name || user.department || '',
+            department: user.department,
         });
         setEditingUserId(user.id);
     };
@@ -60,46 +73,69 @@ const UserTasks = () => {
             return;
         }
 
-        try {
-            const updatedUser = {
-                name: `${form.firstName} ${form.lastName}`,
-                email: form.email,
-                company: { name: form.department },
-            };
+        const updatedUser = {
+            id: editingUserId,
+            firstName: form.firstName,
+            lastName: form.lastName,
+            email: form.email,
+            department: form.department,
+        };
 
-            const response = await axios.put(`https://jsonplaceholder.typicode.com/users/${editingUserId}`, updatedUser);
+        // Check if the user is manually added (UUID-based ID)
+        const isManualUser = typeof editingUserId === 'string';
 
-            if (response.status === 200) {
-                setUsers(users.map(user =>
-                    user.id === editingUserId ? { ...user, ...updatedUser } : user
-                ));
+        if (isManualUser) {
+            // Update manually added user in state
+            setUsers(users.map(user =>
+                user.id === editingUserId ? { ...user, ...updatedUser } : user
+            ));
+        } else {
+            try {
+                const response = await axios.put(
+                    `https://jsonplaceholder.typicode.com/users/${editingUserId}`,
+                    updatedUser
+                );
+
+                if (response.status === 200) {
+                    setUsers(users.map(user =>
+                        user.id === editingUserId ? { ...user, ...updatedUser } : user
+                    ));
+                }
+            } catch (err) {
+                setError('Error updating user');
+                return;
             }
-
-            setForm({ firstName: '', lastName: '', email: '', department: '' });
-            setEditingUserId(null);
-            setError('');
-        } catch (err) {
-            setError('Error updating user');
         }
+
+        setForm({ firstName: '', lastName: '', email: '', department: '' });
+        setEditingUserId(null);
+        setError('');
     };
 
-    // Function to delete a user
     const deleteUser = async (id) => {
-        try {
-            await axios.delete(`https://jsonplaceholder.typicode.com/users/${id}`);
+        const isManualUser = typeof id === 'string';
+
+        if (isManualUser) {
             setUsers(users.filter(user => user.id !== id));
-        } catch (err) {
-            setError('Error deleting user');
+        } else {
+            try {
+                await axios.delete(`https://jsonplaceholder.typicode.com/users/${id}`);
+                setUsers(users.filter(user => user.id !== id));
+            } catch (err) {
+                setError('Error deleting user');
+            }
         }
     };
+
+
 
     return (
         <div className="container mx-auto p-4">
             <h1 className="text-2xl font-bold mb-4">User Management</h1>
             {error && <p className="text-red-500">{error}</p>}
-            {editingUserId && (
-                <button onClick={updateUser} className="bg-green-500 text-white p-2 mb-4">Update User</button>
-            )}
+
+
+
             <div className="mb-4">
                 <input
                     type="text"
@@ -129,12 +165,17 @@ const UserTasks = () => {
                     onChange={(e) => setForm({ ...form, department: e.target.value })}
                     className="border p-2"
                 />
-                <button onClick={addUser} className="bg-blue-500 text-white p-2 ml-2">Add User</button>
+                {editingUserId ? (
+                    <button onClick={updateUser} className="bg-green-500 text-white p-2 mb-4">Update User</button>
+                ) : (
+                    <button onClick={addUser} className="bg-blue-500 text-white p-2 mb-4">Add User</button>
+                )}
             </div>
 
             <ul>
                 {users.map((user) => (
                     <li key={user.id} className="border p-2 mb-2">
+
                         {user.name || `${user.firstName} ${user.lastName}`} - {user.email} - {user.company?.name || user.department}
                         <button onClick={() => handleEdit(user)} className="bg-yellow-500 text-white p-1 ml-2">
                             Edit
@@ -145,10 +186,6 @@ const UserTasks = () => {
                     </li>
                 ))}
             </ul>
-
-            {/* {editingUserId && (
-                <button onClick={updateUser} className="bg-green-500 text-white p-2 mt-4">Update User</button>
-            )} */}
         </div>
     );
 };
